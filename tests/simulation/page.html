@@ -403,6 +403,46 @@ async function fullSuite() {
   const rPersona = mkRow("@deepseek-ai/dsh-persona", "persona", "persona");
   const rFork = mkRow("@deepseek-ai/dsh-tool-subagent", "tool-subagent-fork", "tool-subagent");
   const rMystery = mkRow("@deepseek-ai/dsh-mystery-pkg", "mystery-entry", "mystery");
+  // S18 运行时挂载行：code 是内容哈希（无 agent-presets: 前缀、无 include 声明）
+  const mkHashRow = (pkg, strongId, hash) => {
+    const row = document.createElement("div");
+    const btn = document.createElement("button");
+    const strong = document.createElement("strong"); strong.textContent = strongId;
+    const code = document.createElement("code"); code.textContent = hash;
+    btn.append(strong, code);
+    const dl = document.createElement("dl");
+    for (const [k, v] of [["完整名称", pkg], ["配置状态", "已启用"], ["运行状态", "运行中"]]) {
+      const wrap = document.createElement("div");
+      const dt = document.createElement("dt"); dt.textContent = k;
+      const dd = document.createElement("dd"); dd.textContent = v;
+      wrap.append(dt, dd); dl.append(wrap);
+    }
+    row.append(btn, dl);
+    dlg.append(row);
+    return { row, dl };
+  };
+  const rHash = mkHashRow("@deepseek-ai/dsh-client-ui-directory-picker-native", "ui-directory-picker-native", "d74cb8b9");
+  const rGhost = mkHashRow("@deepseek-ai/dsh-mystery-runtime", "directory-picker", "9d532110");
+  // S19 全局插件用户注册表行：完整名称是无作用域裸名（dsh-plugin-norm）
+  const mkBareRow = (pkg, entryId, strongId) => {
+    const row = document.createElement("div");
+    const btn = document.createElement("button");
+    const strong = document.createElement("strong"); strong.textContent = strongId;
+    const code = document.createElement("code"); code.textContent = entryId;
+    btn.append(strong, code);
+    const inc = document.createElement("code"); inc.textContent = "include:" + entryId;
+    const dl = document.createElement("dl");
+    for (const [k, v] of [["完整名称", pkg], ["配置状态", "已启用"], ["运行状态", "运行中"]]) {
+      const wrap = document.createElement("div");
+      const dt = document.createElement("dt"); dt.textContent = k;
+      const dd = document.createElement("dd"); dd.textContent = v;
+      wrap.append(dt, dd); dl.append(wrap);
+    }
+    row.append(btn, inc, dl);
+    dlg.append(row);
+    return { row, dl };
+  };
+  const rBare = mkBareRow("dsh-plugin-norm", "plugin-norm", "plugin-norm");
   const ok17a = await waitFor(() => rPersona.dl.querySelector("[data-dsh-l10n-zh-desc]"), 8000);
   const dt17 = rPersona.dl.querySelector("[data-dsh-l10n-zh-desc]");
   check("S17a", "0.1.6 详情行：persona 描述注入", ok17a && !!dt17 && dt17.nextElementSibling.textContent.includes("人格"));
@@ -414,9 +454,20 @@ async function fullSuite() {
     !!dtFork && dtFork.getAttribute("data-dsh-l10n-zh-desc") === "tool-subagent-fork"
     && dtFork.nextElementSibling.textContent.includes("分叉"));
   check("S17d", "0.1.6 未收录包不注入", rMystery.dl.querySelector("[data-dsh-l10n-zh-desc]") === null);
+  const ok18a = await waitFor(() => rHash.dl.querySelector("[data-dsh-l10n-zh-desc]"), 8000);
+  const dtHash = rHash.dl.querySelector("[data-dsh-l10n-zh-desc]");
+  check("S18a", "0.1.6 哈希行：经 $pkgAliases 命中 ui-directory-picker-native 词条",
+    ok18a && !!dtHash && dtHash.getAttribute("data-dsh-l10n-zh-desc") === "ui-directory-picker-native"
+    && dtHash.nextElementSibling.textContent.includes("原生"));
+  check("S18b", "0.1.6 哈希行无词条邻行：不被旧路径误挂 directory-picker 键",
+    rGhost.dl.querySelector("[data-dsh-l10n-zh-desc]") === null);
+  const ok19 = await waitFor(() => rBare.dl.querySelector("[data-dsh-l10n-zh-desc]"), 8000);
+  const dtBare = rBare.dl.querySelector("[data-dsh-l10n-zh-desc]");
+  check("S19a", "0.1.6 全局行：无作用域裸包名（dsh-plugin-norm）命中词条",
+    ok19 && !!dtBare && dtBare.getAttribute("data-dsh-l10n-zh-desc") === "plugin-norm");
   await sleep(400);
   check("S17e", "0.1.6 重复扫描不重复注入", rPersona.dl.querySelectorAll("[data-dsh-l10n-zh-desc]").length === 1);
-  rPersona.row.remove(); rFork.row.remove(); rMystery.row.remove();
+  rPersona.row.remove(); rFork.row.remove(); rMystery.row.remove(); rHash.row.remove(); rGhost.row.remove(); rBare.row.remove();
   $("btn-close-settings").click();
 
   finishSuite();

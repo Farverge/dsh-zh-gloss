@@ -538,6 +538,55 @@ function buildRow16(pkg, presetId, strongId) {
 const rowPersona = buildRow16("@deepseek-ai/dsh-persona", "persona", "persona");
 const rowFork = buildRow16("@deepseek-ai/dsh-tool-subagent", "tool-subagent-fork", "tool-subagent");
 const rowMystery = buildRow16("@deepseek-ai/dsh-mystery-pkg", "mystery-entry", "mystery");
+// v0.4.9 回归一：运行时挂载行（directory-picker native 系）code 是内容哈希，
+// 无 agent-presets: 前缀也无 include 声明 → 键解析必须落到 $pkgAliases[包名]。
+pluginFace.__l10nTest.state.pluginInfo["directory-picker"] = "自适应选择器：按宿主挂后端";
+pluginFace.__l10nTest.state.pluginInfo["ui-directory-picker-native"] = "客户端原生目录选择表面";
+pluginFace.__l10nTest.state.pluginInfo.$pkgAliases["@deepseek-ai/dsh-client-ui-directory-picker-native"] = "ui-directory-picker-native";
+function buildHashRow16(pkg, strongId, hashCodeText) {
+  const row = toggleDialog.append(new FakeElement("div"));
+  const btn = row.append(new FakeElement("button"));
+  const strong = btn.append(new FakeElement("strong"));
+  strong.textContent = strongId;
+  const code = btn.append(new FakeElement("code"));
+  code.textContent = hashCodeText;
+  const dl = row.append(new FakeElement("dl"));
+  for (const [k, v] of [["完整名称", pkg], ["配置状态", "已启用"], ["运行状态", "运行中"]]) {
+    const wrap = dl.append(new FakeElement("div"));
+    const dt = wrap.append(new FakeElement("dt"));
+    dt.textContent = k;
+    const dd = wrap.append(new FakeElement("dd"));
+    dd.textContent = v;
+  }
+  return { row, dl };
+}
+const rowHash = buildHashRow16("@deepseek-ai/dsh-client-ui-directory-picker-native", "ui-directory-picker-native", "d74cb8b9");
+// 回归二：无词条行 + 行内可见文本恰为别的词典键（实测线上形态：native 行
+// 强文本/code 泄漏 directory-picker 键）——旧路径必须整体让位，不得误挂。
+const rowGhost = buildHashRow16("@deepseek-ai/dsh-mystery-runtime", "directory-picker", "9d532110");
+// v0.4.9 回归三：全局插件的用户注册表行——完整名称是无作用域裸名
+// （dsh-plugin-norm，无 @scope/ 前缀），不得被包名形状守卫拒掉。
+function buildBareRow16(pkg, entryId, strongId) {
+  const row = toggleDialog.append(new FakeElement("div"));
+  const btn = row.append(new FakeElement("button"));
+  const strong = btn.append(new FakeElement("strong"));
+  strong.textContent = strongId;
+  const code = btn.append(new FakeElement("code"));
+  code.textContent = entryId;
+  const inc = row.append(new FakeElement("code"));
+  inc.textContent = "include:" + entryId;
+  const dl = row.append(new FakeElement("dl"));
+  for (const [k, v] of [["完整名称", pkg], ["配置状态", "已启用"], ["运行状态", "运行中"]]) {
+    const wrap = dl.append(new FakeElement("div"));
+    const dt = wrap.append(new FakeElement("dt"));
+    dt.textContent = k;
+    const dd = wrap.append(new FakeElement("dd"));
+    dd.textContent = v;
+  }
+  return { row, dl };
+}
+pluginFace.__l10nTest.state.pluginInfo["plugin-norm"] = "DSH 生态漂移屏蔽层";
+const rowBare = buildBareRow16("dsh-plugin-norm", "plugin-norm", "plugin-norm");
 pluginFace.__l10nTest.scanToggle();
 const pDesc = rowPersona.dl.querySelector(`[data-dsh-l10n-zh-desc]`);
 ok(pDesc, "B4a6 · 0.1.6 详情行注入「描述」dt");
@@ -549,6 +598,14 @@ const fDesc = rowFork.dl.querySelector(`[data-dsh-l10n-zh-desc]`);
 eq(fDesc && fDesc.getAttribute("data-dsh-l10n-zh-desc"), "tool-subagent-fork", "B4a6 · 同包双行按预设条目 id 区分（fork 拿分叉词条而非主词条）");
 eq(fDesc && fDesc.nextElementSibling && fDesc.nextElementSibling.textContent.includes("分叉工具"), true, "B4a6 · fork 行描述内容正确");
 eq(rowMystery.dl.querySelector(`[data-dsh-l10n-zh-desc]`), null, "B4a6 · 未收录包不注入");
+const hDesc = rowHash.dl.querySelector(`[data-dsh-l10n-zh-desc]`);
+eq(hDesc && hDesc.getAttribute("data-dsh-l10n-zh-desc"), "ui-directory-picker-native", "B4a6 · 哈希 code 行经 $pkgAliases 命中（运行时挂载行）");
+eq(hDesc && hDesc.nextElementSibling && hDesc.nextElementSibling.textContent.includes("客户端原生"), true, "B4a6 · 哈希行描述内容正确");
+eq(hDesc && hDesc.parentElement.tagName, "DIV", "B4a6 · 哈希行描述同样克隆 div 格子");
+eq(rowGhost.dl.querySelector(`[data-dsh-l10n-zh-desc]`), null, "B4a6 · 无词条行不被旧路径误挂邻行键（0.1.6 让位门控）");
+const bDesc = rowBare.dl.querySelector(`[data-dsh-l10n-zh-desc]`);
+eq(bDesc && bDesc.getAttribute("data-dsh-l10n-zh-desc"), "plugin-norm", "B4a6 · 无作用域裸包名（dsh-plugin-norm）不被形状守卫拒掉");
+eq(bDesc && bDesc.nextElementSibling && bDesc.nextElementSibling.textContent.includes("漂移屏蔽层"), true, "B4a6 · 裸包名行经行内 code 直接命中词条");
 pluginFace.__l10nTest.scanToggle();
 eq(rowPersona.dl.querySelectorAll(`[data-dsh-l10n-zh-desc]`).length, 1, "B4a6 · 重复扫描不重复注入");
 pluginFace.__l10nTest.state.pluginInfo = savedPluginInfo;

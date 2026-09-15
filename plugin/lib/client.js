@@ -665,7 +665,10 @@ window.__ModuleLoader__.load({
 					const dl = wrapEl.parentElement;
 					if (!dl || doneDls.has(dl)) continue;
 					const pkg = norm(dd.textContent || "");
-					if (!pkg || !pkg.includes("/")) continue; // 完整名称值必须是包名形状
+					// 包名形状：带作用域（@scope/pkg）或无作用域裸名（用户注册表
+					// 的 dsh-plugin-norm 等，完整名称不带 @scope/）。拒空串与含空格
+					// 的自由文本；允许 cordis: 前缀的模块名原样进入解析。
+					if (!pkg || /\s/.test(pkg) || pkg.length < 3 || !/^@?[\w:][\w.\/:-]*$/.test(pkg)) continue;
 					// 预设条目 id：向上找行容器里的 code 文本（…agent-presets:<id>）。
 					// 行内恰有 2 个 code（条目 id + include 声明）；某层出现 >2 个
 					// code 说明已越出行边界（会拿到邻行 id），立即放弃。
@@ -689,50 +692,55 @@ window.__ModuleLoader__.load({
 				}
 			}
 
-			// —— 旧路径（≤0.1.5 卡片）：配置状态/Cordis 状态 锚点 + 独占容器 ——
-			// 锚点：Cordis 状态行（已挂载插件）与 配置状态行（每张展开卡片都有，
-			// 覆盖已停用/未挂载插件）。Cordis 锚点优先处理，描述行位置更靠后。
-			const anchors = [];
-			for (const k of ["Cordis 状态", "Cordis status", "配置状态", "Config status"]) {
-				for (const el of leafMap.get(k) || []) anchors.push(el);
+		// —— 旧路径（≤0.1.5 卡片）：配置状态/Cordis 状态 锚点 + 独占容器 ——
+		// 锚点：Cordis 状态行（已挂载插件）与 配置状态行（每张展开卡片都有，
+		// 覆盖已停用/未挂载插件）。Cordis 锚点优先处理，描述行位置更靠后。
+		// 0.1.6 插件清单也用「配置状态」字样，但其卡片结构已变（dl>div 网格 +
+		// 完整名称锚点）：旧路径的独占容器判定会在新结构上越界，把邻行的词典键
+		// 误配给无词条的行（实测：ui-directory-picker-native 行被误挂
+		// directory-picker 的描述）。因此只要检测到新锚点，本路径整体让位。
+		if (leafMap.has("完整名称") || leafMap.has("Module")) return;
+		const anchors = [];
+		for (const k of ["Cordis 状态", "Cordis status", "配置状态", "Config status"]) {
+			for (const el of leafMap.get(k) || []) anchors.push(el);
+		}
+		const doneCards = new Set();
+		for (const anchor of anchors) {
+			// 包裹层 = dt/dd 的直接父层（官方为 DIV，位于 dl 之内）；
+			// 卡片 = 向上第一层"恰好只包含一个插件名"的独占容器。
+			// 独占判定防止越界：一旦某层出现 ≥2 个插件名（已跨入别的卡片）即放弃。
+			const wrapEl = anchor.parentElement;
+			if (!wrapEl) continue;
+			if (wrapEl.parentElement && wrapEl.parentElement.querySelector(`[${DESC_ATTR}]`)) continue; // 新路径已注入
+			const srcLabel = anchor;
+			const srcValue = anchor.nextElementSibling || anchor;
+			let card = wrapEl.parentElement;
+			let name = null;
+			for (let d = 0; d < 8 && card && card !== dialog; d++) {
+				const keys = new Set(
+					[...card.querySelectorAll("*")]
+						.filter((x) => x.children && x.children.length === 0)
+						.map((x) => norm(x.textContent || ""))
+						.filter((k) => hasOwn(info, k) && k !== "$pkgAliases")
+				);
+				if (keys.size === 1) { name = [...keys][0]; break; } // 独占容器 = 卡片边界
+				if (keys.size > 1) break;                            // 已越界，拒绝注入
+				card = card.parentElement;                           // 尚无插件名，继续向上
 			}
-			const doneCards = new Set();
-			for (const anchor of anchors) {
-				// 包裹层 = dt/dd 的直接父层（官方为 DIV，位于 dl 之内）；
-				// 卡片 = 向上第一层"恰好只包含一个插件名"的独占容器。
-				// 独占判定防止越界：一旦某层出现 ≥2 个插件名（已跨入别的卡片）即放弃。
-				const wrapEl = anchor.parentElement;
-				if (!wrapEl) continue;
-				if (wrapEl.parentElement && wrapEl.parentElement.querySelector(`[${DESC_ATTR}]`)) continue; // 新路径已注入
-				const srcLabel = anchor;
-				const srcValue = anchor.nextElementSibling || anchor;
-				let card = wrapEl.parentElement;
-				let name = null;
-				for (let d = 0; d < 8 && card && card !== dialog; d++) {
-					const keys = new Set(
-						[...card.querySelectorAll("*")]
-							.filter((x) => x.children && x.children.length === 0)
-							.map((x) => norm(x.textContent || ""))
-							.filter((k) => hasOwn(info, k) && k !== "$pkgAliases")
-					);
-					if (keys.size === 1) { name = [...keys][0]; break; } // 独占容器 = 卡片边界
-					if (keys.size > 1) break;                            // 已越界，拒绝注入
-					card = card.parentElement;                           // 尚无插件名，继续向上
-				}
-				if (!name || !card || !card.contains(wrapEl)) continue;
-				if (doneCards.has(card) || card.querySelector(`[${DESC_ATTR}]`)) { doneCards.add(card); continue; }
-				doneCards.add(card);
-				const desc = info[name];
-				try {
-					// 状态列表是 dl 网格布局：向 dl 插入一对 dt/dd（样式克隆官方
-					// dt/dd，≤0.1.5 已验证的裸插法），插在锚点行之后
-					insertDescRow(wrapEl, name, desc, srcLabel, srcValue, false);
-				} catch (error) {
-					debugLog("pluginInfo: 注入失败（渲染竞态？）", name, String(error).slice(0, 80));
-					scheduleCheck(200);
-				}
+			if (!name || !card || !card.contains(wrapEl)) continue;
+			if (doneCards.has(card) || card.querySelector(`[${DESC_ATTR}]`)) { doneCards.add(card); continue; }
+			doneCards.add(card);
+			const desc = info[name];
+			try {
+				// 状态列表是 dl 网格布局：向 dl 插入一对 dt/dd（样式克隆官方
+				// dt/dd，≤0.1.5 已验证的裸插法），插在锚点行之后
+				insertDescRow(wrapEl, name, desc, srcLabel, srcValue, false);
+			} catch (error) {
+				debugLog("pluginInfo: 注入失败（渲染竞态？）", name, String(error).slice(0, 80));
+				scheduleCheck(200);
 			}
 		}
+	}
 
 		/**
 		 * 注入器：设置弹窗出现时驱动两类增强——语言行开关 + 插件卡片注释。
