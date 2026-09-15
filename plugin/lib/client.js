@@ -594,19 +594,29 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * 设置→插件列表 的展开卡片注入一行「描述」（图5）：官方列表只渲染
-		 * 插件 id，不显示 package.json 描述。真实 DOM（2026-08-29 实测）：
-		 * LI 卡片 > div.cardDetails > dl > div 包裹层 > [dt 标签 + dd 值]，
-		 * 插件名在 LI 内、dl 之外。注入 = 在「Cordis 状态」包裹层之后插入
-		 * 同构包裹层（样式克隆）；仅注入词典收录的插件，其余不动。
+		 * 设置→插件列表 的展开详情注入一行「描述」。
+		 *
+		 * 0.1.6 起官方列表改版为「按 Agent 预设分组的插件行」（ui-settings-plugin-inventory），
+		 * 展开后的详情 dl 首行是 完整名称/Module（值为包名）。新路径（0.1.6+）：
+		 *   锚点 = 完整名称/Module 的 dt → 取 dd 包名，同时回看行内 code 元素里的
+		 *   预设条目 id（agent-presets:<id>，区分同包多 id 的行，如 tool-subagent 与
+		 *   tool-subagent-fork）→ 按 [预设条目 id, 包名别名, 包名] 顺序查 pluginInfo。
+		 * 旧路径（≤0.1.5 卡片 DOM）保留兜底：锚点 = Cordis 状态/配置状态 行，
+		 *   向上找独占容器定位插件名（词典键 = 插件名文本）。
+		 * 两路注入都以 dl 为单位去重（DESC_ATTR），互不重复。
 		 */
 		const DESC_ATTR = "data-dsh-l10n-zh-desc";
+		const DESC_ATTR_VAL = "data-dsh-l10n-zh-desc-val";
 		function tryPluginCardInjection(dialog) {
 			if (!state.enabled) return;
 			const info = state.pluginInfo;
 			if (!info || !Object.keys(info).length) return;
 			const hint = dialog.textContent || "";
-			if (!(hint.includes("配置状态") || hint.includes("Config status"))) return; // 不在插件页
+			if (!(hint.includes("配置状态") || hint.includes("Config status") || hint.includes("Configuration"))) return; // 不在插件页
+			const pkgAliases =
+				info.$pkgAliases && typeof info.$pkgAliases === "object" && !Array.isArray(info.$pkgAliases)
+					? info.$pkgAliases
+					: {};
 			// 一次遍历建立叶子文本索引
 			const leafMap = new Map();
 			for (const x of dialog.querySelectorAll("*")) {
@@ -616,6 +626,70 @@ window.__ModuleLoader__.load({
 				if (!leafMap.has(k)) leafMap.set(k, []);
 				leafMap.get(k).push(x);
 			}
+
+			// —— 新路径（0.1.6 详情行）：完整名称/Module dt → 包名 + 预设条目 id ——
+			const doneDls = new Set();
+			const insertDescRow = (wrapEl, key, desc, srclabelEl, srcValueEl, cloneWrap) => {
+				const host = wrapEl.parentElement;
+				if (!host || host.querySelector(`[${DESC_ATTR}]`)) return false;
+				const lab = document.createElement(srclabelEl.tagName);
+				lab.className = srclabelEl.className || "";
+				lab.textContent = "描述";
+				lab.setAttribute(DESC_ATTR, key);
+				const val = document.createElement(srcValueEl.tagName);
+				val.className = srcValueEl.className || "";
+				val.textContent = desc;
+				val.setAttribute(DESC_ATTR_VAL, key);
+				if (cloneWrap) {
+					// 0.1.6 网格：dl > div(格) > dt+dd。克隆空格子保持网格布局。
+					const rowEl =
+						typeof wrapEl.cloneNode === "function"
+							? wrapEl.cloneNode(false)
+							: document.createElement(wrapEl.tagName);
+					if (rowEl.className === undefined) rowEl.className = "";
+					rowEl.append(lab, val);
+					host.insertBefore(rowEl, wrapEl.nextElementSibling);
+				} else {
+					// ≤0.1.5 已验证做法：dt/dd 作为 dl 直接子元素插入
+					host.insertBefore(val, wrapEl.nextElementSibling);
+					host.insertBefore(lab, val);
+				}
+				debugLog("pluginInfo: ✅ 已注入", key);
+				return true;
+			};
+			for (const label of ["完整名称", "Module"]) {
+				for (const dt of leafMap.get(label) || []) {
+					const wrapEl = dt.parentElement;
+					const dd = dt.nextElementSibling;
+					if (!wrapEl || !dd) continue;
+					const dl = wrapEl.parentElement;
+					if (!dl || doneDls.has(dl)) continue;
+					const pkg = norm(dd.textContent || "");
+					if (!pkg || !pkg.includes("/")) continue; // 完整名称值必须是包名形状
+					// 预设条目 id：向上找行容器里的 code 文本（…agent-presets:<id>）。
+					// 行内恰有 2 个 code（条目 id + include 声明）；某层出现 >2 个
+					// code 说明已越出行边界（会拿到邻行 id），立即放弃。
+					let presetId = null;
+					let rowEl = dl.parentElement;
+					for (let d = 0; d < 4 && rowEl && rowEl !== dialog; d++) {
+						const codes = rowEl.querySelectorAll("code");
+						if (codes.length > 2) break;
+						for (const c of codes) {
+							const t = norm(c.textContent || "");
+							const i = t.lastIndexOf(":");
+							if (i > 0 && t.length - i - 1 > 2) presetId = t.slice(i + 1);
+						}
+						if (presetId) break;
+						rowEl = rowEl.parentElement;
+					}
+					const candidates = [presetId, pkgAliases[pkg], pkg, pkg.slice(pkg.lastIndexOf("/") + 1)];
+					const key = candidates.find((k) => k && hasOwn(info, k) && k !== "$pkgAliases");
+					if (!key || doneDls.has(dl)) continue;
+					if (insertDescRow(wrapEl, key, info[key], dt, dd, true)) doneDls.add(dl);
+				}
+			}
+
+			// —— 旧路径（≤0.1.5 卡片）：配置状态/Cordis 状态 锚点 + 独占容器 ——
 			// 锚点：Cordis 状态行（已挂载插件）与 配置状态行（每张展开卡片都有，
 			// 覆盖已停用/未挂载插件）。Cordis 锚点优先处理，描述行位置更靠后。
 			const anchors = [];
@@ -629,6 +703,7 @@ window.__ModuleLoader__.load({
 				// 独占判定防止越界：一旦某层出现 ≥2 个插件名（已跨入别的卡片）即放弃。
 				const wrapEl = anchor.parentElement;
 				if (!wrapEl) continue;
+				if (wrapEl.parentElement && wrapEl.parentElement.querySelector(`[${DESC_ATTR}]`)) continue; // 新路径已注入
 				const srcLabel = anchor;
 				const srcValue = anchor.nextElementSibling || anchor;
 				let card = wrapEl.parentElement;
@@ -638,7 +713,7 @@ window.__ModuleLoader__.load({
 						[...card.querySelectorAll("*")]
 							.filter((x) => x.children && x.children.length === 0)
 							.map((x) => norm(x.textContent || ""))
-							.filter((k) => hasOwn(info, k))
+							.filter((k) => hasOwn(info, k) && k !== "$pkgAliases")
 					);
 					if (keys.size === 1) { name = [...keys][0]; break; } // 独占容器 = 卡片边界
 					if (keys.size > 1) break;                            // 已越界，拒绝注入
@@ -649,19 +724,9 @@ window.__ModuleLoader__.load({
 				doneCards.add(card);
 				const desc = info[name];
 				try {
-					// 状态列表是 dl 网格布局，dt/dd 必须是 dl 的直接子元素——
-					// 直接向 dl 插入一对 dt/dd（样式克隆官方 dt/dd），插在锚点行之后
-					const host = wrapEl.parentElement;
-					const lab = document.createElement(srcLabel.tagName);
-					lab.className = srcLabel.className || "";
-					lab.textContent = "描述";
-					lab.setAttribute(DESC_ATTR, name);
-					const val = document.createElement(srcValue.tagName);
-					val.className = srcValue.className || "";
-					val.textContent = desc;
-					host.insertBefore(val, wrapEl.nextSibling);
-					host.insertBefore(lab, val);
-					debugLog("pluginInfo: ✅ 已注入", name);
+					// 状态列表是 dl 网格布局：向 dl 插入一对 dt/dd（样式克隆官方
+					// dt/dd，≤0.1.5 已验证的裸插法），插在锚点行之后
+					insertDescRow(wrapEl, name, desc, srcLabel, srcValue, false);
 				} catch (error) {
 					debugLog("pluginInfo: 注入失败（渲染竞态？）", name, String(error).slice(0, 80));
 					scheduleCheck(200);
@@ -692,6 +757,13 @@ window.__ModuleLoader__.load({
 				if (timer) { clearTimeout(timer); timer = null; }
 				obs.disconnect();
 				try {
+					// 卸载清理：dt/dd 都带标记；克隆格子情形下两者移除后若父格
+					// 变空壳则一并移除，不残留布局空位。
+					document.querySelectorAll(`[${DESC_ATTR}],[${DESC_ATTR_VAL}]`).forEach((n) => {
+						const p = n.parentElement;
+						n.remove();
+						if (p && p.childNodes.length === 0 && p.tagName === "DIV") p.remove();
+					});
 					document.querySelectorAll(`${OWN_UI_SELECTOR},[${DESC_ATTR}]`).forEach((n) => n.remove());
 				} catch { /* 已随弹窗卸载 */ }
 			};

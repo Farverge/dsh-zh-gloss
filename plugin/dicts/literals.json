@@ -1,9 +1,6 @@
 {
   "$comment": "第二层词典：字面量精确映射 + 模式匹配。literals 为『折叠空白后整词精确匹配』；patterns 为正则条目（按声明顺序取首个命中，$1~$9 引用捕获组），用于带路径/参数的宿主报错。两层均同时作用于可见文本与 title/aria-label/placeholder 属性，仅在 UI 语言为中文时生效。删除条目即恢复该处英文。",
   "literals": {
-    "Compact older conversation history": "压缩较早的对话历史",
-    "set or view the goal for a long-running task": "设置或查看长期任务的目标",
-    "record feedback about this session": "记录本次会话的反馈",
     "System Prompt": "系统提示词",
     "Tools": "工具",
     "Diff": "差异",
@@ -21,7 +18,6 @@
     "Request options JSON": "请求选项 JSON",
     "Message source JSON": "消息来源 JSON",
     "Open tool call summary": "打开工具调用摘要",
-    "Open image": "打开图片",
     "Drag to resize. Double-click to reset.": "拖动调整宽度，双击复位",
     "Session log": "会话日志",
     "Select the model for this conversation": "选择本次会话使用的模型"

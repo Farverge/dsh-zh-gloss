@@ -3,7 +3,7 @@
  * dsh-l10n-zh 真实使用模拟服务器 —— 在真实浏览器里驱动**真插件 bundle + 真词典**。
  *
  *   node tests/simulation/server.mjs [端口=8931]
- *   → 打开 http://127.0.0.1:8931/                 全量推演（S1–S13）
+ *   → 打开 http://127.0.0.1:8931/                 全量推演（S1–S17）
  *   → http://127.0.0.1:8931/?hostile=1            敌意环境（S14：locale 契约破坏 → 惰性）
  *   → 先访问 / ，再访问 /?phase=cache             首屏缓存（S15：词典扣住 2.5s 仍即时中文）
  *
@@ -29,8 +29,9 @@ const faults = { mode: "ok", delayMs: 0 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function mergedDicts() {
-  const names = ["10-backend-copy.json", "literals.json", "ui.json"]; // 文件名序
+  const names = ["10-backend-copy.json", "20-trajectory.json", "30-plugin-info.json", "literals.json", "ui.json"]; // 文件名序（同宿主半边）
   const ui = {}, literals = {}, chromeLiterals = {}, patterns = [];
+  const pluginInfo = {};
   for (const f of names) {
     try {
       const doc = JSON.parse(await readFile(join(PLUGIN, "dicts", f), "utf8"));
@@ -41,11 +42,12 @@ async function mergedDicts() {
       }
       Object.assign(literals, doc.literals ?? {});
       Object.assign(chromeLiterals, doc.chromeLiterals ?? {});
+      if (doc.pluginInfo && typeof doc.pluginInfo === "object") Object.assign(pluginInfo, doc.pluginInfo);
       if (Array.isArray(doc.patterns)) patterns.push(...doc.patterns);
     } catch { /* 坏文件跳过（同宿主半边容错语义） */ }
   }
   Object.assign(literals, overlay.literals ?? {});
-  return { version: 1, ui, literals, chromeLiterals, patterns };
+  return { version: 1, ui, literals, chromeLiterals, patterns, pluginInfo };
 }
 
 function sendJson(res, status, payload) {
@@ -125,7 +127,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[sim] http://127.0.0.1:${PORT}/            全量推演 S1–S13`);
+  console.log(`[sim] http://127.0.0.1:${PORT}/            全量推演 S1–S17`);
   console.log(`[sim] http://127.0.0.1:${PORT}/?hostile=1   敌意环境 S14`);
   console.log(`[sim] 先访问 / 再访问 /?phase=cache          首屏缓存 S15`);
 });

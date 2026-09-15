@@ -1,5 +1,5 @@
 {
-  "$comment": "第一层词典：键级覆盖。结构 ui[官方命名空间][键] = 中文。仅在 UI 语言为中文时生效，未列出的键原样走官方查找链。命名空间来源见 reports/value-gaps.txt 与 docs/DICT-GUIDE.md。",
+  "$comment": "第一层词典：键级覆盖。结构 ui[官方命名空间][键] = 中文。仅在 UI 语言为中文时生效，未列出的键原样走官方查找链。0.1.6 校准：官方已接管 enter 行为（conversation ns）、@会话引用（reference ns）；补 tab.schema/skill/plan/子智能体等占位未译键。命名空间来源见 reports/value-gaps-016.md。",
   "ui": {
     "trajectory": {
       "toolbar.duration": "时长",
@@ -10,7 +10,8 @@
       "toolbar.collapseTurns": "收起轮次",
       "toolbar.calls": "调用",
       "toolbar.expandCalls": "展开调用",
-      "toolbar.collapseCalls": "收起调用"
+      "toolbar.collapseCalls": "收起调用",
+      "tab.schema": "结构"
     },
     "cordis": {
       "panel.trigger": "Cordis 插件",
@@ -21,14 +22,18 @@
     "model": {
       "effort.providerDefault": "默认"
     },
-    "reference": {
-      "candidate.session": "会话"
-    },
     "chat": {
       "settings.transcript.normal": "常规",
-      "settings.transcript.compact": "紧凑",
-      "settings.enter.queue": "排队",
-      "settings.enter.steer": "转向"
+      "settings.transcript.compact": "紧凑"
+    },
+    "skill": {
+      "row.title": "技能"
+    },
+    "plan": {
+      "chip.label": "计划"
+    },
+    "subagent-model-selection": {
+      "subagentModelSelectionTitle": "子智能体"
     }
   }
 }

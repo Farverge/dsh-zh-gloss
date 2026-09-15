@@ -33,7 +33,7 @@
         <div data-chat-flow-kind="user" id="userBubble"><span id="userText">Options</span> <button id="userBtn" title="System Prompt">Options</button></div>
         <div class="compactionRow"><span id="compactionText">Compacted 12 history items (~3.4K tokens).</span></div>
         <div class="slashMenu">
-          <div>compact — <span id="cmdDesc">Compact older conversation history</span></div>
+          <div>compact — <span id="cmdDesc">No compactable history yet.</span></div>
           <div>plan — <span>Enter or leave plan mode</span></div>
           <div id="goalReceipt">Goal created</div>
           <div id="permDesc">Write inside the workspace and permitted temporary directories; wider retries require approval.</div>
@@ -47,7 +47,7 @@
       <button data-tool="read">Read</button>
       <button data-tool="fetch">Fetch</button>
       <button>Tool call</button>
-      <button id="tooltipBtn" title="Open image">🖼</button>
+      <button id="tooltipBtn" title="Select the model for this conversation">🖼</button>
     </div>
   </div>
 
@@ -278,15 +278,15 @@ async function fullSuite() {
   check("S7", "contentEditable：用户输入原样", $("ceEl").textContent === "Options");
 
   // S8 属性动态改写（官方更新 title → 再基准化重译）
-  const ok8a = await waitFor(() => $("tooltipBtn").getAttribute("title") === "打开图片", 8000);
-  check("S8a", "属性：tooltip Open image → 打开图片", ok8a);
+  const ok8a = await waitFor(() => $("tooltipBtn").getAttribute("title") === "选择本次会话使用的模型", 8000);
+  check("S8a", "属性：tooltip Select the model… → 选择本次会话使用的模型", ok8a);
   $("tooltipBtn").setAttribute("title", "System Prompt"); // 模拟官方随后改写
   const ok8b = await waitFor(() => $("tooltipBtn").getAttribute("title") === "系统提示词", 8000);
   check("S8b", "属性：官方改写 title 后按新值重译（re-base）", ok8b, $("tooltipBtn").getAttribute("title"));
 
   // S9 后端数据文案
-  check("S9a", "命令释义：Compact older conversation history → 压缩较早的对话历史",
-    $("cmdDesc").textContent === "压缩较早的对话历史");
+  check("S9a", "后端回执：No compactable history yet. → 尚无可压缩的历史。",
+    $("cmdDesc").textContent === "尚无可压缩的历史。");
   check("S9b", "执行回执：Goal created → 已创建目标", $("goalReceipt").textContent === "已创建目标");
   check("S9c", "权限预设描述替换",
     $("permDesc").textContent.startsWith("可在工作区与获批的临时目录内写入"));
@@ -377,6 +377,46 @@ async function fullSuite() {
     return t && t.textContent === "汉化：开";
   }, 8000);
   check("S16g", "重新打开设置后开关自动回归", ok16g);
+
+  // S17 0.1.6 插件列表详情行注入（改版 DOM：行 > button[strong+code] + code include + dl > div 格子）
+  $("btn-open-settings").click();
+  await waitFor(() => document.querySelector('[role="dialog"]'), 8000);
+  const dlg = document.querySelector('[role="dialog"]');
+  const mkRow = (pkg, presetId, strongId) => {
+    const row = document.createElement("div");
+    const btn = document.createElement("button");
+    const strong = document.createElement("strong"); strong.textContent = strongId;
+    const code = document.createElement("code"); code.textContent = "agent-presets:" + presetId;
+    btn.append(strong, code);
+    const inc = document.createElement("code"); inc.textContent = "include:agent-presets:" + presetId;
+    const dl = document.createElement("dl");
+    for (const [k, v] of [["完整名称", pkg], ["来自", "创造模式"], ["配置状态", "已启用"], ["运行状态", "运行中"]]) {
+      const wrap = document.createElement("div");
+      const dt = document.createElement("dt"); dt.textContent = k;
+      const dd = document.createElement("dd"); dd.textContent = v;
+      wrap.append(dt, dd); dl.append(wrap);
+    }
+    row.append(btn, inc, dl);
+    dlg.append(row);
+    return { row, dl };
+  };
+  const rPersona = mkRow("@deepseek-ai/dsh-persona", "persona", "persona");
+  const rFork = mkRow("@deepseek-ai/dsh-tool-subagent", "tool-subagent-fork", "tool-subagent");
+  const rMystery = mkRow("@deepseek-ai/dsh-mystery-pkg", "mystery-entry", "mystery");
+  const ok17a = await waitFor(() => rPersona.dl.querySelector("[data-dsh-l10n-zh-desc]"), 8000);
+  const dt17 = rPersona.dl.querySelector("[data-dsh-l10n-zh-desc]");
+  check("S17a", "0.1.6 详情行：persona 描述注入", ok17a && !!dt17 && dt17.nextElementSibling.textContent.includes("人格"));
+  check("S17b", "0.1.6 详情行：描述格是 div（克隆格子，保持 dl 网格）",
+    !!dt17 && dt17.parentElement.tagName === "DIV" && dt17.parentElement.parentElement === rPersona.dl
+    && dt17.parentElement.previousElementSibling.querySelector("dt").textContent === "完整名称");
+  const dtFork = rFork.dl.querySelector("[data-dsh-l10n-zh-desc]");
+  check("S17c", "0.1.6 同包双行：fork 行按预设条目 id 拿分叉词条",
+    !!dtFork && dtFork.getAttribute("data-dsh-l10n-zh-desc") === "tool-subagent-fork"
+    && dtFork.nextElementSibling.textContent.includes("分叉"));
+  check("S17d", "0.1.6 未收录包不注入", rMystery.dl.querySelector("[data-dsh-l10n-zh-desc]") === null);
+  await sleep(400);
+  check("S17e", "0.1.6 重复扫描不重复注入", rPersona.dl.querySelectorAll("[data-dsh-l10n-zh-desc]").length === 1);
+  rPersona.row.remove(); rFork.row.remove(); rMystery.row.remove();
   $("btn-close-settings").click();
 
   finishSuite();

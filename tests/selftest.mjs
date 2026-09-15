@@ -91,6 +91,12 @@ class FakeElement {
   get title() { return this.getAttribute("title") ?? ""; }
   set title(v) { this.setAttribute("title", String(v)); }
   append(...cs) { for (const c of cs) { c.parentElement = this; this.childNodes.push(c); } return cs[0]; }
+  cloneNode(deep) { // DOM 语义：参数为 deep 标志，cloneNode(false)=浅克隆
+    const el = new FakeElement(this.tagName);
+    for (const [k, v] of this.attrs) el.attrs.set(k, v);
+    if (deep) for (const c of this.childNodes) el.append(c.cloneNode ? c.cloneNode(deep) : c);
+    return el;
+  }
   insertBefore(node, ref) {
     node.parentElement = this;
     const i = ref ? this.childNodes.indexOf(ref) : -1;
@@ -497,6 +503,57 @@ eq(hmrDesc && hmrDesc.nextElementSibling && hmrDesc.nextElementSibling.textConte
 eq(unknownCard.querySelector(`[data-dsh-l10n-zh-desc]`), null, "B4a4 · 未收录插件不注入");
 eq(pluginCard.querySelector(`[data-dsh-l10n-zh-desc]`).getAttribute("data-dsh-l10n-zh-desc"), "include", "B4a5 · 多卡片各取己名（描述不串台）");
 
+/* ─── B4a6 · 0.1.6 插件列表详情行（ui-settings-plugin-inventory 改版 DOM）───
+   行结构：div(行) > button[strong id + code "agent-presets:<id>"] + code include:* + dl > div(格) > dt/dd。
+   键解析优先级：预设条目 id > $pkgAliases[包名] > 包名 > 包名尾段。 */
+const savedPluginInfo = pluginFace.__l10nTest.state.pluginInfo;
+pluginFace.__l10nTest.state.pluginInfo = {
+  persona: "部署人格：组合创作的人格设定段",
+  "tool-subagent": "子智能体委派工具",
+  "tool-subagent-fork": "子智能体分叉工具",
+  "$pkgAliases": {
+    "@deepseek-ai/dsh-persona": "persona",
+    "@deepseek-ai/dsh-tool-subagent": "tool-subagent",
+  },
+};
+function buildRow16(pkg, presetId, strongId) {
+  const row = toggleDialog.append(new FakeElement("div"));
+  const btn = row.append(new FakeElement("button"));
+  const strong = btn.append(new FakeElement("strong"));
+  strong.textContent = strongId;
+  const code = btn.append(new FakeElement("code"));
+  code.textContent = "agent-presets:" + presetId;
+  const inc = row.append(new FakeElement("code"));
+  inc.textContent = "include:agent-presets:" + presetId;
+  const dl = row.append(new FakeElement("dl"));
+  for (const [k, v] of [["完整名称", pkg], ["来自", "创造模式"], ["配置状态", "已启用"], ["运行状态", "运行中"]]) {
+    const wrap = dl.append(new FakeElement("div"));
+    const dt = wrap.append(new FakeElement("dt"));
+    dt.textContent = k;
+    const dd = wrap.append(new FakeElement("dd"));
+    dd.textContent = v;
+  }
+  return { row, dl };
+}
+const rowPersona = buildRow16("@deepseek-ai/dsh-persona", "persona", "persona");
+const rowFork = buildRow16("@deepseek-ai/dsh-tool-subagent", "tool-subagent-fork", "tool-subagent");
+const rowMystery = buildRow16("@deepseek-ai/dsh-mystery-pkg", "mystery-entry", "mystery");
+pluginFace.__l10nTest.scanToggle();
+const pDesc = rowPersona.dl.querySelector(`[data-dsh-l10n-zh-desc]`);
+ok(pDesc, "B4a6 · 0.1.6 详情行注入「描述」dt");
+eq(pDesc && pDesc.parentElement.tagName, "DIV", "B4a6 · 描述以克隆的 div 格子插入（保持 dl 网格）");
+eq(pDesc && pDesc.parentElement.parentElement === rowPersona.dl, true, "B4a6 · 格子位于详情 dl 内");
+eq(pDesc && pDesc.nextElementSibling && pDesc.nextElementSibling.textContent.includes("人格设定段"), true, "B4a6 · 包名经 $pkgAliases 命中 persona 词条");
+eq(pDesc && pDesc.parentElement.previousElementSibling && pDesc.parentElement.previousElementSibling.childNodes[0] && pDesc.parentElement.previousElementSibling.childNodes[0].textContent, "完整名称", "B4a6 · 位置紧随「完整名称」格");
+const fDesc = rowFork.dl.querySelector(`[data-dsh-l10n-zh-desc]`);
+eq(fDesc && fDesc.getAttribute("data-dsh-l10n-zh-desc"), "tool-subagent-fork", "B4a6 · 同包双行按预设条目 id 区分（fork 拿分叉词条而非主词条）");
+eq(fDesc && fDesc.nextElementSibling && fDesc.nextElementSibling.textContent.includes("分叉工具"), true, "B4a6 · fork 行描述内容正确");
+eq(rowMystery.dl.querySelector(`[data-dsh-l10n-zh-desc]`), null, "B4a6 · 未收录包不注入");
+pluginFace.__l10nTest.scanToggle();
+eq(rowPersona.dl.querySelectorAll(`[data-dsh-l10n-zh-desc]`).length, 1, "B4a6 · 重复扫描不重复注入");
+pluginFace.__l10nTest.state.pluginInfo = savedPluginInfo;
+
+
 toggleBtn.click(); // 关
 eq(pluginFace.__l10nTest.state.enabled, false, "B4b · 开关关闭");
 eq(localStorage.getItem(ENABLED_KEY), "0", "B4b · 状态持久化");
@@ -534,6 +591,9 @@ eq(localStorage.getItem(CACHE_KEY), null, "D5 · 卸载清除本地词典缓存"
 ok(pubMax <= 2, `D6 · publish 无自递归（观测最大深度 ${pubMax}）`);
 eq(doc.body.querySelector(`[${TOGGLE_ATTR}]`), null, "D7 · 卸载连应用内开关一起移除");
 eq(doc.body.querySelector(`[data-dsh-l10n-zh-desc]`), null, "D8 · 卸载连插件描述行一起移除");
+eq(doc.body.textContent.includes("组合加载：测试描述"), false, "D8 · 描述值不残留（dd 一并移除）");
+eq(doc.body.textContent.includes("部署人格：组合创作的人格设定段"), false, "D8 · 0.1.6 克隆格子的描述一并移除");
+eq(doc.body.textContent.includes("子智能体分叉工具"), false, "D8 · fork 行描述一并移除");
 
 /* ════════ C13 · 词典拉取失败退避重试（卸载后状态仍可驱动） ════════ */
 {
@@ -614,7 +674,7 @@ ok(typeof routes["/api/l10n-zh/dicts"] === "function", "A1 · dicts 路由已注
   eq(captured.literalCount, 1, "A4 · 计数正确");
   eq(captured.patternCount, 2, "A4 · patterns 计数正确");
   eq(captured.pluginInfoCount, 1, "A4 · pluginInfo 计数正确");
-  eq(captured.pluginBaseline, "0.1.2-rc.1", "A5 · 回显插件验证基线");
+  eq(captured.pluginBaseline, "0.1.6-alpha.1", "A5 · 回显插件验证基线");
   eq(captured.officialDshVersion, null, "A5 · 探测不到官方版本时回显 null");
   eq(captured.drift, null, "A5 · 探测不到时 drift 为 null");
 }
