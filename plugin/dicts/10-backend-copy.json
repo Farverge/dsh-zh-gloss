@@ -1,6 +1,7 @@
 {
   "$comment": "后端下发的裸英文数据文案（斜杠命令释义、命令执行回执、权限预设描述、工具卡片标题）。来源调研见 reports/backend-strings/。均为精确匹配条目；带数字/代词的模板走 patterns。",
   "literals": {
+    "dsh: profile reload requires the root Include entry": "dsh：重载 profile 需要根 Include 条目",
     "No compactable history yet.": "尚无可压缩的历史。",
     "Compaction cancelled.": "已取消压缩。",
     "Compaction finished, but the session could not be saved.": "压缩已完成，但会话未能保存。",
