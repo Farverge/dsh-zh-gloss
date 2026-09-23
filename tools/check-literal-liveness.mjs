@@ -106,6 +106,20 @@ const walk = (dir, depth) => {
   }
 };
 walk(dshRoot, 0);
+// SKILL.md 的 frontmatter 描述行也是渲染文案来源（技能目录经后端下发到 "/" 菜单）
+const skillMd = [];
+const walkMd = (dir, depth) => {
+  if (depth > 4) return;
+  let ents; try { ents = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of ents) {
+    if (e.name.startsWith(".")) continue;
+    const full = join(dir, e.name);
+    if (e.isDirectory()) walkMd(full, depth + 1);
+    else if (e.name === "SKILL.md") skillMd.push(full);
+  }
+};
+walkMd(dshRoot, 0);
+corpusFiles.push(...skillMd);
 const corpus = corpusFiles.map((f) => readFileSync(f, "utf8")).join("\n");
 console.error(`语料：${corpusFiles.length} 个官方文件，${(corpus.length / 1e6).toFixed(1)}MB`);
 

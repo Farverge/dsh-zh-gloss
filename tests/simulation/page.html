@@ -25,6 +25,7 @@
         <span data-t-ns="trajectory" data-t-key="toolbar.turns"></span>·
         <span data-t-ns="trajectory" data-t-key="toolbar.expandCalls"></span>·
         <label><span data-t-ns="trajectory" data-t-key="toolbar.useActualDuration"></span><input type="checkbox"></label>
+        <span data-t-ns="trajectory" data-t-key="tab.schema"></span>
       </div>
       <div class="tabs">
         <span class="tabTitle">System Prompt</span><span class="tabTitle">Raw Output</span><span class="tabTitle">Options</span><span class="tabTitle">Usage</span><span class="tabTitle">Timing</span><span class="tabTitle">Diff</span><span class="tabTitle">Summary</span>
@@ -85,12 +86,14 @@ window.__ModuleLoader__ = { load(reg) { window.__pluginReg = reg; } };
 const OFFICIAL_DICTS = {
   trajectory: {
     zh: {
-      "toolbar.duration": "Duration", "toolbar.turns": "Turns",
-      "toolbar.expandCalls": "Expand calls", "toolbar.useActualDuration": "Use actual duration",
+      "toolbar.duration": "时长", "toolbar.turns": "轮次",
+      "toolbar.expandCalls": "展开所有调用", "toolbar.useActualDuration": "使用实际时长",
+      "tab.schema": "Schema",
     },
     en: {
       "toolbar.duration": "Duration", "toolbar.turns": "Turns",
       "toolbar.expandCalls": "Expand calls", "toolbar.useActualDuration": "Use actual duration",
+      "tab.schema": "Schema",
     },
   },
   common: { zh: { cancel: "取消" }, en: { cancel: "Cancel" } },
@@ -235,20 +238,20 @@ async function fullSuite() {
   install();
   const T = face.__l10nTest;
 
-  // S1 键级覆盖
+  // S1 键级：0.1.7 起轨迹工具栏官方 zh 已正式翻译——插件让位后由官方链出中文
   let ok1 = await waitFor(() => $("static-zone").querySelector('[data-t-key="toolbar.duration"]').textContent === "时长");
-  check("S1a", "键级覆盖：toolbar.duration → 时长", ok1);
-  check("S1b", "键级覆盖：turns → 轮次",
+  check("S1a", "官方链：toolbar.duration → 时长（0.1.7 官方已译，插件让位）", ok1);
+  check("S1b", "官方链：turns → 轮次（官方已译）",
     $("static-zone").querySelector('[data-t-key="toolbar.turns"]').textContent === "轮次");
-  check("S1c", "键级覆盖：expandCalls → 展开调用",
-    $("static-zone").querySelector('[data-t-key="toolbar.expandCalls"]').textContent === "展开调用");
+  check("S1c", "官方链：expandCalls → 展开所有调用（官方已译）",
+    $("static-zone").querySelector('[data-t-key="toolbar.expandCalls"]').textContent === "展开所有调用");
   check("S1d", "未覆盖键走官方链：workspace.add → 添加工作区",
     locale.lookup("workspace", "workspace.add") === "添加工作区");
 
-  // S2 字面量（标签页标题）
-  const tabs = [...document.querySelectorAll(".tabTitle")].map((e) => e.textContent);
-  check("S2", "字面量：标签页标题全部替换",
-    JSON.stringify(tabs) === JSON.stringify(["系统提示词", "原始输出", "选项", "用量", "耗时", "差异", "摘要"]), tabs.join("/"));
+  // S2 字面量（标签页标题）——官方链已译后 S1 不再阻塞词典加载，这里显式等字面量层到达
+  const tabTitles = () => [...document.querySelectorAll(".tabTitle")].map((e) => e.textContent);
+  const ok2 = await waitFor(() => JSON.stringify(tabTitles()) === JSON.stringify(["系统提示词", "原始输出", "选项", "用量", "耗时", "差异", "摘要"]), 8000);
+  check("S2", "字面量：标签页标题全部替换", ok2, tabTitles().join("/"));
 
   // S3 模式（compaction 回执）
   const ok3 = await waitFor(() => $("compactionText").textContent.includes("已压缩 12 条历史记录"));
@@ -291,16 +294,18 @@ async function fullSuite() {
   check("S9c", "权限预设描述替换",
     $("permDesc").textContent.startsWith("可在工作区与获批的临时目录内写入"));
 
-  // S10 官方补译让位
-  const durSpan = () => $("static-zone").querySelector('[data-t-key="toolbar.duration"]');
-  OFFICIAL_DICTS.trajectory.zh["toolbar.duration"] = "官方补译时长";
+  // S10 官方补译让位（0.1.7 起 duration 官方已译，让位语义改用仍是占位的 tab.schema 驱动）
+  const schemaSpan = () => $("static-zone").querySelector('[data-t-key="tab.schema"]');
+  const ok10pre = await waitFor(() => schemaSpan().textContent === "结构", 8000);
+  check("S10a0", "插件覆盖：tab.schema → 结构（官方 zh 仍是占位 Schema）", ok10pre, schemaSpan().textContent);
+  OFFICIAL_DICTS.trajectory.zh["tab.schema"] = "官方补译结构";
   locale.publish();
-  await waitFor(() => durSpan().textContent === "官方补译时长", 8000);
-  check("S10a", "官方补译含汉字 → 插件让位", durSpan().textContent === "官方补译时长", durSpan().textContent);
-  OFFICIAL_DICTS.trajectory.zh["toolbar.duration"] = "Duration";
+  await waitFor(() => schemaSpan().textContent === "官方补译结构", 8000);
+  check("S10a", "官方补译含汉字 → 插件让位", schemaSpan().textContent === "官方补译结构", schemaSpan().textContent);
+  OFFICIAL_DICTS.trajectory.zh["tab.schema"] = "Schema";
   locale.publish();
-  await waitFor(() => durSpan().textContent === "时长", 8000);
-  check("S10b", "官方仍是英文 → 插件词条恢复", durSpan().textContent === "时长", durSpan().textContent);
+  await waitFor(() => schemaSpan().textContent === "结构", 8000);
+  check("S10b", "官方退回占位 → 插件词条恢复", schemaSpan().textContent === "结构", schemaSpan().textContent);
 
   // S11 词典热更新（overlay 模拟改 dicts 文件）
   await post("/sim/overlay", { literals: { "Brand New Button": "全新按钮" } });
@@ -351,8 +356,8 @@ async function fullSuite() {
 
   // 重装恢复现场
   install();
-  const ok13e = await waitFor(() => $("static-zone").querySelector('[data-t-key="toolbar.duration"]').textContent === "时长", 8000);
-  check("S13e", "重装：翻译恢复", ok13e);
+  const ok13e = await waitFor(() => $("static-zone").querySelector('[data-t-key="tab.schema"]').textContent === "结构", 8000);
+  check("S13e", "重装：翻译恢复（tab.schema 插件覆盖生效）", ok13e);
 
   // S16 应用内开关（设置 → 通用 → 语言行左侧）
   $("btn-open-settings").click();
@@ -363,12 +368,12 @@ async function fullSuite() {
   check("S16b", "开关位于语言选择药丸左侧", !!tog && !!simMenu && simMenu.closest("span").previousElementSibling === tog);
   check("S16c", "默认开启态（借官方药丸样式）", !!tog && tog.textContent === "汉化：开" && tog.className === "hVGvvW_selector");
   tog.click();
-  const ok16d = await waitFor(() => durSpan().textContent === "Duration", 8000);
-  check("S16d", "关=立即还原官方英文", ok16d, durSpan().textContent);
+  const ok16d = await waitFor(() => schemaSpan().textContent === "Schema", 8000);
+  check("S16d", "关=立即还原官方占位（Schema）", ok16d, schemaSpan().textContent);
   check("S16e", "标签切换为汉化：关", tog.textContent === "汉化：关" && tog.getAttribute("aria-pressed") === "false");
   tog.click();
-  const ok16f = await waitFor(() => durSpan().textContent === "时长", 8000);
-  check("S16f", "开=翻译恢复", ok16f, durSpan().textContent);
+  const ok16f = await waitFor(() => schemaSpan().textContent === "结构", 8000);
+  check("S16f", "开=翻译恢复", ok16f, schemaSpan().textContent);
   $("btn-close-settings").click();
   await sleep(150);
   $("btn-open-settings").click();

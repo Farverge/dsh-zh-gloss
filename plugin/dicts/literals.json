@@ -21,8 +21,9 @@
     "Drag to resize. Double-click to reset.": "拖动调整宽度，双击复位",
     "Session log": "会话日志",
     "Select the model for this conversation": "选择本次会话使用的模型",
-    "Create, modify, debug, or extend dynamic Cordis Plugins, including Host Services and Events, Client Slot and theme UI, Package-private Client-to-Host calls, dynamic Tools, version updates, approval failures, and runtime diagnostics. Use this Skill to route a user request to the correct platform and Inspect Provider, then define, run, repair, or roll back the Plugin.": "创建、修改、调试或扩展动态 Cordis 插件：涵盖宿主服务与事件、客户端插槽与主题 UI、包私有客户端到宿主调用、动态工具、版本更新、审批失败与运行时诊断。用本技能把用户请求路由到正确的平台与检查提供器，再定义、运行、修复或回滚插件。",
-    "Use when creating, changing, or validating a Cordis composition for this harness — writing or editing an agent preset, adding or removing a plugin row, deciding whether something belongs to the host composition or to one session, checking whether a preset you authored actually mounts, or diagnosing a row that mounted but contributed nothing.": "在为本套件创建、修改或校验 Cordis 组合时使用——编写或编辑 Agent 预设、增删插件行、判断某能力属于宿主组合还是单个会话、检查自建预设是否真正挂载，或诊断挂载了却没生效的行。"
+    "Use when authoring, installing, configuring, or debugging persistent plugins and MCP connections in the current Harness profile, and for any visual object, decoration, or widget request that names no other destination, which means an installed UI plugin rendered in the Harness Web UI.": "在编写、安装、配置或调试当前 Harness profile 的持久化插件与 MCP 连接时使用；也用于没有指明其他归属的任何视觉对象、装饰或小组件请求——即由已安装 UI 插件在 Harness Web UI 中渲染。",
+    "Use when creating, changing, or validating an agent preset or other Cordis composition for this harness, including deciding host versus preset placement and checking that an authored preset mounts.": "在创建、修改或校验本套件的 Agent 预设或其他 Cordis 组合时使用——包括判断某能力应放在宿主还是预设、以及检查自建预设是否真正挂载。",
+    "Use when writing or reading a Cordis bundle patch or agent preset for this harness and you need the Loader YAML dialect (insert, override by id, group, disabled, isolate, !!js) or the list of installable Harness plugin packages and what each provides.": "在编写或阅读本套件的 Cordis bundle 补丁或 Agent 预设、需要 Loader YAML 方言（insert、按 id 覆盖、group、disabled、isolate、!!js）或可安装的 Harness 插件包清单及其提供的功能时使用。"
   },
   "patterns": [
     { "match": "^native directory picker aborted \\(dialog unresponsive; worker killed\\)$", "replace": "原生目录选择已中止（对话框无响应，工作进程已被终止）" },
