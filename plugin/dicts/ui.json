@@ -13,7 +13,7 @@
     "model": {
       "effort.providerDefault": "默认"
     },
-    "subagent-model-selection-settings": {
+    "settings.subagent": {
       "subagentTitle": "子智能体"
     }
   }
